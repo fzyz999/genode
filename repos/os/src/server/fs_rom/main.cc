@@ -332,7 +332,7 @@ class Rom_root : public Genode::Root_component<Rom_session_component>
 			Genode::Session_label const label = label_from_args(args);
 			Genode::Session_label const module_name = label.last_element();
 
-			Genode::log("request for ", label.string());
+			Genode::log("request for ", label);
 
 			/* create new session for the requested file */
 			return new (md_alloc())

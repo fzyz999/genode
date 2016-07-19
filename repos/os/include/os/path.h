@@ -331,8 +331,7 @@ class Genode::Path_base
 		/**
 		 * Print path to output stream
 		 */
-		void print(Genode::Output &output) const {
-			output.out_string(base()); }
+		void print(Genode::Output &output) const { output.out_string(base()); }
 };
 
 
