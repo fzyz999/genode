@@ -1,6 +1,20 @@
+--- src/kernel/sel4/include/plat/pc99/plat/machine.h
++++ src/kernel/sel4/include/plat/pc99/plat/machine.h
+@@ -51,8 +51,11 @@ typedef enum _irq_t {
+ #define BIOS_PADDR_END   0x100000
+ 
+ #define BIOS_PADDR_VIDEO_RAM_START 0x000A0000
++#define BIOS_PADDR_VIDEO_RAM_END   0x000B0000
+ /* The text mode framebuffer exists part way into the video ram region */
+ #define BIOS_PADDR_VIDEO_RAM_TEXT_MODE_START 0x000B8000
+ #define BIOS_PADDR_IVDEO_RAM_END 0x000C0000
++#define BIOS_PADDR_VIDEO_BIOS_START 0x000C0000
++#define BIOS_PADDR_VIDEO_BIOS_END   0x000CF000
+ 
+ #endif
 --- src/kernel/sel4/src/arch/x86/kernel/boot_sys.c
 +++ src/kernel/sel4/src/arch/x86/kernel/boot_sys.c
-@@ -294,9 +294,11 @@ parse_mem_map(uint32_t mmap_length, uint32_t mmap_addr)
+@@ -295,9 +295,11 @@ parse_mem_map(uint32_t mmap_length, uint32_t mmap_addr)
      multiboot_mmap_t *mmap = (multiboot_mmap_t *)((word_t)mmap_addr);
      printf("Parsing GRUB physical memory map\n");
  
@@ -14,11 +28,13 @@
          uint32_t type = mmap->type;
          if (mem_start != (uint64_t)(word_t)mem_start) {
              printf("\tPhysical memory region not addressable\n");
-@@ -307,9 +309,46 @@ parse_mem_map(uint32_t mmap_length, uint32_t mmap_addr)
+@@ -308,9 +310,48 @@ parse_mem_map(uint32_t mmap_length, uint32_t mmap_addr)
                      mem_start, mem_start + mem_length
                  });
              }
-+            if (type == MULTIBOOT_MMAP_RESERVED_TYPE) {
++            if (type == MULTIBOOT_MMAP_RESERVED_TYPE ||
++                type == MULTIBOOT_MMAP_ACPI_TYPE ||
++                type == MULTIBOOT_MMAP_ACPI_NVS_TYPE) {
 +                p_region_t reg = { .start = mem_start, .end = mem_start + mem_length};
 +
 +                bool_t const inside_start = bios_area.start <= reg.start && reg.start < bios_area.end;
@@ -55,13 +71,13 @@
 +    if (bios_area.start < bios_area.end)
 +        insert_dev_p_reg(bios_area);
 +
-+    /* check this XXX - vesa driver requires the regions on Qemu XXX */
-+    insert_dev_p_reg((p_region_t) { .start = BIOS_PADDR_IVDEO_RAM_END, .end = BIOS_PADDR_START });
-+    insert_dev_p_reg((p_region_t) { .start = BIOS_PADDR_VIDEO_RAM_START, .end = BIOS_PADDR_VIDEO_RAM_START + 0x8000 });
++    /* vesa driver requires the regions */
++    insert_dev_p_reg((p_region_t) { .start = BIOS_PADDR_VIDEO_BIOS_START, .end = BIOS_PADDR_VIDEO_BIOS_END });
++    insert_dev_p_reg((p_region_t) { .start = BIOS_PADDR_VIDEO_RAM_START, .end = BIOS_PADDR_VIDEO_RAM_END });
  }
  
  static BOOT_CODE bool_t
-@@ -348,6 +387,9 @@ try_boot_sys(
+@@ -349,6 +390,9 @@ try_boot_sys(
      /* copy CPU bootup code to lower memory */
      memcpy((void*)BOOT_NODE_PADDR, boot_cpu_start, boot_cpu_end - boot_cpu_start);
  
@@ -71,7 +87,7 @@
      boot_state.mem_p_regs.count = 0;
      if (mbi->flags & MULTIBOOT_INFO_MMAP_FLAG) {
          parse_mem_map(mbi->mmap_length, mbi->mmap_addr);
-@@ -377,9 +419,6 @@ try_boot_sys(
+@@ -378,9 +422,6 @@ try_boot_sys(
          pic_disable();
      }
  
